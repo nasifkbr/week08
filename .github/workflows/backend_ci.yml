@@ -38,4 +38,15 @@ jobs:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: orders
         options: >-
-          --health-cmd "pg_i_
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports: [ "5433:5432" ]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setu
