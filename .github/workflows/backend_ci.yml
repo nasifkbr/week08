@@ -1,5 +1,3 @@
-# week08/.github/workflows/backend_ci.yml
-
 name: Backend CI - Test, Build and Push Images to ACR
 
 on:
@@ -11,9 +9,8 @@ on:
       - '.github/workflows/backend_ci.yml'
 
 env:
-  # unique, traceable tag per run
   IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }}
-  # repo names (change to hyphens if your k8s uses hyphens)
+  # Keep these names consistent with your k8s manifests
   PRODUCT_REPO: product_service
   ORDER_REPO:   order_service
 
@@ -97,17 +94,17 @@ jobs:
       - name: Azure Login
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}   # SP JSON from --sdk-auth
+          creds: ${{ secrets.AZURE_CREDENTIALS }}   # JSON from `--sdk-auth`
 
-      # We keep ACR short name in a secret to avoid hard-coding
       - name: Validate ACR_NAME secret exists
         run: |
           test -n "${{ secrets.ACR_NAME }}" || (echo "Missing secret ACR_NAME"; exit 1)
 
       - name: Resolve ACR login server
         run: |
-          echo "ACR_LOGIN_SERVER=$(az acr show -n ${{ secrets.ACR_NAME }} --query loginServer -o tsv)" >> $GITHUB_ENV
-          echo "Resolved login server: $ACR_LOGIN_SERVER"
+          LOGIN_SERVER=$(az acr show -n ${{ secrets.ACR_NAME }} --query loginServer -o tsv)
+          echo "ACR_LOGIN_SERVER=$LOGIN_SERVER" >> $GITHUB_ENV
+          echo "Resolved ACR login server: $LOGIN_SERVER"
 
       - name: Login to ACR (by short name)
         run: az acr login --name ${{ secrets.ACR_NAME }}
@@ -122,10 +119,4 @@ jobs:
       - name: Build & push Order Service
         run: |
           docker build -t $ACR_LOGIN_SERVER/${{ env.ORDER_REPO }}:${{ env.IMAGE_TAG }} ./backend/order_service
-          docker push  $ACR_LOGIN_SERVER/${{ env.ORDER_REPO }}:${{ env.IMAGE_TAG }}
-          docker tag   $ACR_LOGIN_SERVER/${{ env.ORDER_REPO }}:${{ env.IMAGE_TAG }} $ACR_LOGIN_SERVER/${{ env.ORDER_REPO }}:latest
-          docker push  $ACR_LOGIN_SERVER/${{ env.ORDER_REPO }}:latest
-
-      - name: Logout from Azure
-        if: always()
-        run: az logout || true
+          docker push  $ACR_LOGIN_SERVER/${{ env.ORD
