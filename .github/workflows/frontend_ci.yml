@@ -1,77 +1,53 @@
 name: Frontend CI - Build & Push Image
- 
+
 on:
-
   workflow_dispatch:
-
   push:
-
     branches: [ main ]
-
     paths:
-
       - 'frontend/**'
-
       - '.github/workflows/frontend_ci.yml'
- 
+
 env:
-
   IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }}
- 
+
 jobs:
-
   build_and_push_frontend:
-
     runs-on: ubuntu-latest
- 
+
     steps:
-
       - name: Checkout repository
-
         uses: actions/checkout@v4
- 
+
       - name: Azure Login
-
         uses: azure/login@v2
-
         with:
-
           creds: ${{ secrets.AZURE_CREDENTIALS }}
- 
+
       - name: Validate ACR_NAME secret is present
-
         run: |
-
           test -n "${{ secrets.ACR_NAME }}" || (echo "ACR_NAME secret is missing"; exit 1)
- 
-      - name: Resolve ACR login server
 
+      # Set the login server without calling ARM (avoids Reader RBAC)
+      - name: Set ACR_LOGIN_SERVER env
         run: |
+          echo "ACR_LOGIN_SERVER=${{ secrets.ACR_NAME }}.azurecr.io" >> "$GITHUB_ENV"
 
-          echo "ACR_LOGIN_SERVER=$(az acr show -n ${{ secrets.ACR_NAME }} --query loginServer -o tsv)" >> $GITHUB_ENV
+      - name: Verify ACR_LOGIN_SERVER is set
+        run: |
+          echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER"
+          test -n "$ACR_LOGIN_SERVER" || (echo "ACR_LOGIN_SERVER is empty"; exit 1)
 
-          echo "Resolved ACR login server: $ACR_LOGIN_SERVER"
- 
       - name: Login to Azure Container Registry
+        run: az acr login --name "${{ secrets.ACR_NAME }}"
 
-        run: az acr login --name ${{ secrets.ACR_NAME }}
- 
       - name: Build and Push Frontend Image
-
         run: |
+          docker build -t "$ACR_LOGIN_SERVER/frontend:${{ env.IMAGE_TAG }}" ./frontend
+          docker push  "$ACR_LOGIN_SERVER/frontend:${{ env.IMAGE_TAG }}"
+          docker tag   "$ACR_LOGIN_SERVER/frontend:${{ env.IMAGE_TAG }}" "$ACR_LOGIN_SERVER/frontend:latest"
+          docker push  "$ACR_LOGIN_SERVER/frontend:latest"
 
-          docker build -t $ACR_LOGIN_SERVER/frontend:${{ env.IMAGE_TAG }} ./frontend
-
-          docker push $ACR_LOGIN_SERVER/frontend:${{ env.IMAGE_TAG }}
-
-          docker tag  $ACR_LOGIN_SERVER/frontend:${{ env.IMAGE_TAG }} $ACR_LOGIN_SERVER/frontend:latest
-
-          docker push $ACR_LOGIN_SERVER/frontend:latest
- 
       - name: Logout from Azure
-
         if: always()
-
         run: az logout || true
-
- 
